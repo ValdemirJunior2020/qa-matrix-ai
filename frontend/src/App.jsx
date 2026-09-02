@@ -29,128 +29,368 @@ export default function App() {
   const [health, setHealth] = useState(null)
   const [source, setSource] = useState(null)
 
+  const [serverOnline, setServerOnline] = useState(false)
+  const [checkingServer, setCheckingServer] = useState(false)
+  const [wasOffline, setWasOffline] = useState(false)
+
+  // =========================================================
+  // LOAD MATRIX WHEN USER LOGS IN
+  // =========================================================
+
   useEffect(() => {
     if (!user) return
 
     let cancelled = false
 
-    const loadAppData = async () => {
+    const loadMatrix = async () => {
       try {
-        const [matrixData, healthData] = await Promise.all([
-          api.matrix(),
-          api.health(),
-        ])
+        const matrixData = await api.matrix()
 
         if (!cancelled) {
           setMatrix(matrixData)
-          setHealth(healthData)
         }
       } catch (error) {
-        console.error('Failed to load app data:', error)
+        console.error(
+          'Failed to load Matrix:',
+          error
+        )
       }
     }
 
-    loadAppData()
+    loadMatrix()
 
     return () => {
       cancelled = true
     }
-  }, [user, page])
+  }, [user])
+
+  // =========================================================
+  // SERVER HEALTH + AUTOMATIC RECONNECT
+  // =========================================================
+
+  useEffect(() => {
+    if (!user) return
+
+    let cancelled = false
+    let timer = null
+
+    const checkServer = async () => {
+      if (cancelled) return
+
+      setCheckingServer(true)
+
+      try {
+        const healthData =
+          await api.health()
+
+        if (cancelled) return
+
+        setHealth(healthData)
+        setServerOnline(true)
+
+        // If server was previously offline
+        // refresh Matrix data after reconnect.
+        if (wasOffline) {
+          try {
+            const matrixData =
+              await api.matrix()
+
+            if (!cancelled) {
+              setMatrix(matrixData)
+            }
+          } catch (error) {
+            console.error(
+              'Matrix refresh after reconnect failed:',
+              error
+            )
+          }
+        }
+
+        setWasOffline(false)
+      } catch (error) {
+        if (cancelled) return
+
+        console.warn(
+          'QA Matrix server unavailable. Retrying...',
+          error
+        )
+
+        setServerOnline(false)
+        setWasOffline(true)
+
+        setHealth({
+          status: 'offline',
+        })
+      } finally {
+        if (!cancelled) {
+          setCheckingServer(false)
+        }
+      }
+    }
+
+    // Check immediately
+    checkServer()
+
+    // Then check every 5 seconds
+    timer = setInterval(
+      checkServer,
+      5000
+    )
+
+    return () => {
+      cancelled = true
+
+      if (timer) {
+        clearInterval(timer)
+      }
+    }
+  }, [user, wasOffline])
+
+  // =========================================================
+  // LOGIN SCREEN
+  // =========================================================
 
   if (!user) {
-    return <Login onLogin={login} />
+    return (
+      <Login
+        onLogin={login}
+      />
+    )
   }
 
-  const nav = [
-    ['chat', MessageSquarePlus, 'New Chat'],
-    ['history', MessagesSquare, 'Chat History'],
-    ['matrix', FileSpreadsheet, 'Matrix'],
-    ['admin', Shield, 'Admin'],
-    ['settings', Settings, 'Settings'],
-    ['status', Server, 'Server Status'],
+  // =========================================================
+  // NAVIGATION
+  // =========================================================
+
+  const normalNav = [
+    [
+      'chat',
+      MessageSquarePlus,
+      'New Chat',
+    ],
+    [
+      'history',
+      MessagesSquare,
+      'Chat History',
+    ],
+    [
+      'matrix',
+      FileSpreadsheet,
+      'Matrix',
+    ],
+    [
+      'status',
+      Server,
+      'Server Status',
+    ],
   ]
 
-  const openSource = async (sourceInfo) => {
-    try {
-      const data = await api.source(sourceInfo.record_id)
-      setSource(data)
-    } catch (error) {
-      console.error('Failed to load source:', error)
-      setSource(sourceInfo)
+  const adminNav = [
+    [
+      'admin',
+      Shield,
+      'Admin',
+    ],
+    [
+      'settings',
+      Settings,
+      'Settings',
+    ],
+  ]
+
+  const nav =
+    user.role === 'admin'
+      ? [...normalNav, ...adminNav]
+      : normalNav
+
+  // =========================================================
+  // SOURCE PANEL
+  // =========================================================
+
+  const openSource =
+    async (sourceInfo) => {
+      try {
+        const data =
+          await api.source(
+            sourceInfo.record_id
+          )
+
+        setSource(data)
+      } catch (error) {
+        console.error(
+          'Failed to load source:',
+          error
+        )
+
+        setSource(sourceInfo)
+      }
     }
-  }
+
+  // =========================================================
+  // PAGE RENDERER
+  // =========================================================
 
   const renderPage = () => {
-    if (page === 'admin') {
+    if (
+      page === 'admin' &&
+      user.role === 'admin'
+    ) {
+      return <Admin />
+    }
+
+    if (
+      page === 'settings' &&
+      user.role === 'admin'
+    ) {
+      return <SettingsPage />
+    }
+
+    if (page === 'history') {
+      return (
+        <History
+          onSource={openSource}
+        />
+      )
+    }
+
+    if (page === 'status') {
       if (user.role === 'admin') {
         return <Admin />
       }
 
-      return <Chat matrix={matrix} onSource={openSource} />
+      return (
+        <div className="admin-page">
+          <div className="page-title">
+            <div>
+              <span className="eyebrow">
+                SERVER STATUS
+              </span>
+
+              <h2>
+                QA Matrix AI
+              </h2>
+            </div>
+          </div>
+
+          <div className="admin-card">
+            <h3>
+              Server Connection
+            </h3>
+
+            <StatusPill
+              ok={serverOnline}
+              label={
+                serverOnline
+                  ? 'Server online'
+                  : 'Server offline · reconnecting'
+              }
+            />
+
+            <p>
+              {serverOnline
+                ? 'The private QA Matrix server is connected and ready.'
+                : 'The server cannot be reached right now. QA Matrix AI will keep trying automatically every 5 seconds.'}
+            </p>
+          </div>
+        </div>
+      )
     }
 
-    if (page === 'settings') {
-      if (user.role === 'admin') {
-        return <SettingsPage />
-      }
-
-      return <Chat matrix={matrix} onSource={openSource} />
-    }
-
-    if (page === 'history') {
-      return <History onSource={openSource} />
-    }
-
-    if (page === 'status') {
-      return <Admin />
-    }
-
-    return <Chat matrix={matrix} onSource={openSource} />
+    return (
+      <Chat
+        matrix={matrix}
+        onSource={openSource}
+      />
+    )
   }
+
+  // =========================================================
+  // UI
+  // =========================================================
 
   return (
     <div className="shell">
+
       <aside className="sidebar">
+
         <div className="logo">
-          <div>QA</div>
+
+          <div>
+            QA
+          </div>
 
           <span>
             Matrix AI
-            <small>PRIVATE SERVER</small>
+
+            <small>
+              PRIVATE SERVER
+            </small>
           </span>
+
         </div>
 
         <nav>
-          {nav.map(([id, Icon, label]) => (
-            <button
-              key={id}
-              className={page === id ? 'active' : ''}
-              onClick={() => setPage(id)}
-              type="button"
-            >
-              <Icon size={18} />
-              {label}
-            </button>
-          ))}
+
+          {nav.map(
+            ([
+              id,
+              Icon,
+              label,
+            ]) => (
+
+              <button
+                key={id}
+                className={
+                  page === id
+                    ? 'active'
+                    : ''
+                }
+                onClick={() =>
+                  setPage(id)
+                }
+                type="button"
+              >
+
+                <Icon size={18} />
+
+                {label}
+
+              </button>
+            )
+          )}
+
         </nav>
 
         <div className="sidebar-foot">
+
           <StatusPill
-            ok={health?.status === 'online'}
+            ok={serverOnline}
             label={
-              health?.status === 'online'
+              serverOnline
                 ? 'Server online'
-                : 'Server offline'
+                : checkingServer
+                  ? 'Checking server…'
+                  : 'Server offline · reconnecting'
             }
           />
 
-          <button onClick={logout} type="button">
+          <button
+            onClick={logout}
+            type="button"
+          >
+
             <LogOut size={17} />
+
             Sign out
+
           </button>
 
-          <small>{user.email}</small>
+          <small>
+            {user.email}
+          </small>
+
         </div>
+
       </aside>
 
       <main className="workspace">
@@ -159,8 +399,11 @@ export default function App() {
 
       <SourcePanel
         source={source}
-        onClose={() => setSource(null)}
+        onClose={() =>
+          setSource(null)
+        }
       />
+
     </div>
   )
 }
