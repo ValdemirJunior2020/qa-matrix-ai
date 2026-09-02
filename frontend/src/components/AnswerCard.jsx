@@ -2,7 +2,12 @@ function formatAnswer(text = '') {
   const lines = String(text).split('\n')
 
   return lines.map((line, index) => {
-    const match = line.match(/^(\d+)\.\s+(.*)$/)
+    // Matches:
+    // 1. Step
+    // 1.Step
+    // 1) Step
+    // 1-Step
+    const match = line.match(/^(\d+)[\.\)\-]\s*(.*)$/)
 
     if (match) {
       return (
@@ -19,25 +24,39 @@ function formatAnswer(text = '') {
     }
 
     if (!line.trim()) {
-      return <div key={index} className="answer-space" />
+      return (
+        <div
+          key={index}
+          className="answer-space"
+        />
+      )
     }
 
     return (
-      <div key={index} className="answer-line">
+      <div
+        key={index}
+        className="answer-line"
+      >
         {line}
       </div>
     )
   })
 }
 
-export default function AnswerCard({ data, onSource }) {
+export default function AnswerCard({
+  data,
+  onSource,
+}) {
   return (
     <div className="answer-card">
 
       <div className="finding-grid">
+
         <div>
           <span>Category</span>
-          <b>{data.category || 'Not determined'}</b>
+          <b>
+            {data.category || 'Not determined'}
+          </b>
         </div>
 
         <div>
@@ -60,55 +79,83 @@ export default function AnswerCard({ data, onSource }) {
           <span>Confidence</span>
           <b>
             {data.confidence_label || 'Low'} ·{' '}
-            {Math.round((data.confidence || 0) * 100)}%
+            {Math.round(
+              (data.confidence || 0) * 100
+            )}
+            %
           </b>
         </div>
+
       </div>
 
       <section>
+
         <h4>Answer</h4>
 
         <div className="formatted-answer">
           {formatAnswer(data.answer)}
         </div>
+
       </section>
 
       {data.matrix_rule && (
         <section className="matrix-rule">
+
           <h4>Matrix Rule</h4>
-          <p>{data.matrix_rule}</p>
+
+          <p>
+            {data.matrix_rule}
+          </p>
+
         </section>
       )}
 
       {data.coaching && (
         <section>
+
           <h4>AI Recommendation</h4>
-          <p>{data.coaching}</p>
+
+          <p>
+            {data.coaching}
+          </p>
+
         </section>
       )}
 
       {!!data.sources?.length && (
         <section>
+
           <h4>Matrix Evidence</h4>
 
           <div className="sources">
+
             {data.sources.map((source) => (
               <button
                 key={source.record_id}
                 type="button"
-                onClick={() => onSource(source)}
+                onClick={() =>
+                  onSource(source)
+                }
               >
-                <b>{source.sheet}</b>
+
+                <b>
+                  {source.sheet}
+                </b>
 
                 <span>
                   {source.category || 'Matrix'} ·{' '}
                   {source.cell_range}
                 </span>
 
-                <small>{source.excerpt}</small>
+                <small>
+                  {source.excerpt}
+                </small>
+
               </button>
             ))}
+
           </div>
+
         </section>
       )}
 
