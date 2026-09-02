@@ -100,3 +100,32 @@
     grid-column: 1 / -1;
   }
 }
+.formatted-answer {
+  line-height: 1.6;
+}
+
+.answer-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.step-number {
+  color: #d60000 !important;
+  font-weight: 900 !important;
+  min-width: 24px;
+  flex-shrink: 0;
+}
+
+.step-text {
+  flex: 1;
+}
+
+.answer-line {
+  margin: 4px 0;
+}
+
+.answer-space {
+  height: 8px;
+}
