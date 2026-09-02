@@ -270,15 +270,20 @@ def extract_numbered_steps(
     text: str | None,
 ) -> list[str]:
     """
-    Finds messy numbered instructions such as:
+    Extract real numbered Matrix steps without confusing
+    normal numbers such as:
 
-    1 call hotel 2 use slack 3 document notes
+    10 minutes
+    2-7 business days
+    $100
+    room 203
 
-    or:
+    Valid step styles include:
 
-    1. Call hotel
-    2) Use Slack
-    3- Add notes
+    1. Call Supplier
+    2. Contact hotel
+    3) Document notes
+    4: Escalate
     """
 
     text = clean_text(text)
@@ -286,18 +291,17 @@ def extract_numbered_steps(
     if not text:
         return []
 
-    # Matches:
-    # 1 text
-    # 1. text
-    # 1) text
-    # 1: text
-    # 1- text
+    # A real step number must have punctuation after it.
+    #
+    # This prevents things like:
+    # "in 10 minutes"
+    # from being treated as step 10.
     pattern = (
-        r"(?:^|[\s\n])"
+        r"(?:^|[\s,;\n])"
         r"(\d{1,2})"
         r"\s*"
-        r"[\.\)\:\-]?"
-        r"\s+"
+        r"[\.\)\:]"
+        r"\s*"
     )
 
     matches = list(
@@ -307,27 +311,74 @@ def extract_numbered_steps(
         )
     )
 
-    # One number alone is not enough to prove a procedure.
     if len(matches) < 2:
+        return []
+
+    # Keep only a sensible sequence like:
+    # 1, 2, 3, 4
+    #
+    # If the text contains another random number,
+    # it won't automatically become a procedure step.
+    valid_matches = []
+
+    expected = None
+
+    for match in matches:
+        number = int(
+            match.group(1)
+        )
+
+        if expected is None:
+            expected = number
+
+        if number == expected:
+            valid_matches.append(
+                match
+            )
+
+            expected += 1
+
+    if len(valid_matches) < 2:
         return []
 
     steps: list[str] = []
 
-    for index, match in enumerate(matches):
-
+    for index, match in enumerate(
+        valid_matches
+    ):
         start = match.end()
 
-        if index + 1 < len(matches):
-            end = matches[index + 1].start()
+        if index + 1 < len(valid_matches):
+            end = valid_matches[
+                index + 1
+            ].start()
         else:
             end = len(text)
 
-        value = text[start:end].strip()
+        value = text[
+            start:end
+        ].strip()
 
-        value = normalize_step(value)
+        value = re.sub(
+            r"^[\s,;:\-–—]+",
+            "",
+            value,
+        )
+
+        value = re.sub(
+            r"[\s,;:\-–—]+$",
+            "",
+            value,
+        )
+
+        value = normalize_step(
+            value
+        )
 
         if value:
-            steps.append(value)
+            steps.append(
+                value
+            )
 
     return steps
 
@@ -361,17 +412,22 @@ def extract_line_steps(
 
     for line in lines:
 
-        # Remove an existing number from the beginning.
+        # Remove an existing number only when it looks
+        # like an actual numbered step.
         line = re.sub(
-            r"^\s*\d{1,2}\s*[\.\)\:\-]?\s*",
+            r"^\s*\d{1,2}\s*[\.\)\:]\s*",
             "",
             line,
         )
 
-        line = normalize_step(line)
+        line = normalize_step(
+            line
+        )
 
         if line:
-            steps.append(line)
+            steps.append(
+                line
+            )
 
     return steps
 
@@ -419,7 +475,9 @@ def detect_procedure(
     original Matrix text.
     """
 
-    original = clean_text(text)
+    original = clean_text(
+        text
+    )
 
     if not original:
         return {
@@ -429,15 +487,18 @@ def detect_procedure(
             "original": "",
         }
 
+    # First try proper numbered steps.
     steps = extract_numbered_steps(
         original
     )
 
+    # Then try separate lines.
     if not steps:
         steps = extract_line_steps(
             original
         )
 
+    # Finally try semicolon-separated actions.
     if not steps:
         steps = extract_semicolon_steps(
             original
@@ -472,8 +533,6 @@ def detect_procedure(
         ),
         "original": original,
     }
-
-
 # ============================================================
 # DATABASE HELPERS
 # ============================================================
