@@ -1,0 +1,6 @@
+tunnel: YOUR-TUNNEL-UUID
+credentials-file: C:\\Users\\YOURUSER\\.cloudflared\\YOUR-TUNNEL-UUID.json
+ingress:
+  - hostname: qa-api.example.com
+    service: http://127.0.0.1:8000
+  - service: http_status:404

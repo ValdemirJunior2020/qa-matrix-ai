@@ -1,0 +1,11 @@
+# Existing .git directories must never be deleted by installers or scripts.
+frontend/node_modules/
+frontend/dist/
+backend/.venv/
+backend/.env
+backend/data/database/server.secret
+backend/__pycache__/
+backend/**/__pycache__/
+*.pyc
+cloudflare/*.json
+cloudflare/config.yml
