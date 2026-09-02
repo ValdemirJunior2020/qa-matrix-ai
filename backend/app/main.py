@@ -12,7 +12,21 @@ from .rate_limit import enforce_rate_limit
 
 logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(name)s %(message)s")
 app=FastAPI(title=settings.app_name,version="1.0.0",docs_url="/docs" if settings.app_env!="production" else None,redoc_url=None)
-app.add_middleware(CORSMiddleware,allow_origins=settings.cors_origin_list,allow_credentials=True,allow_methods=["GET","POST","PUT"],allow_headers=["Authorization","Content-Type"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origin_list,
+    allow_credentials=True,
+    allow_methods=[
+        "GET",
+        "POST",
+        "PUT",
+        "DELETE",
+    ],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+    ],
+)
 
 @app.middleware("http")
 async def security_headers(request:Request,call_next):
