@@ -1032,7 +1032,51 @@ Return only valid JSON matching the required response schema.
             critical_result,
             score_rows,
         )
+    # --------------------------------------------------------
+    # FORCE VERIFIED MATRIX PROCEDURE
+    # --------------------------------------------------------
+    #
+    # If Python successfully detected a numbered procedure
+    # directly from the Matrix, use those exact cleaned steps
+    # instead of allowing the LLM to rewrite the numbering.
+    #
+    # This prevents mistakes such as:
+    #
+    # "in 10 Minutes"
+    #
+    # becoming:
+    #
+    # 2. If unconfirmed...
+    # 3. Minutes.
+    #
+    # Python controls the steps. Ollama may explain them,
+    # but it cannot change the procedure numbering.
 
+    verified_procedure = None
+
+    for record_context in context:
+        if record_context.get("procedure_detected"):
+            steps = record_context.get("procedure_steps", [])
+
+            if len(steps) >= 2:
+                verified_procedure = steps
+                break
+
+    if verified_procedure:
+        answer_lines = [
+            "Follow these steps:",
+            "",
+        ]
+
+        for number, step in enumerate(
+            verified_procedure,
+            start=1,
+        ):
+            answer_lines.append(
+                f"{number}. {step}"
+            )
+
+        obj["answer"] = "\n".join(answer_lines)
     # --------------------------------------------------------
     # 9. NORMALIZE RESPONSE FIELDS
     # --------------------------------------------------------
